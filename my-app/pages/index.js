@@ -24,7 +24,7 @@ export default function Home() {
   const [balanceOfCryptoDevTokens, setBalanceOfCryptoDevTokens] =
     useState(zero);
   //amount of the tokens that the user wants to mint
-  const [tokensAmount, setTokensAmount] = useState(zero);
+  const [tokenAmount, setTokenAmount] = useState(zero);
   //tokensMinted is the total number of tokens that have been minted till now out if 10000 ( max total supply)
   const [tokensMinted, setTokensMinted] = useState(zero);
   // isOwner gets the owner of the contract through the signed address
@@ -64,6 +64,203 @@ export default function Home() {
       const balance = await nftContract.balanceOf(address);
 
       // balance is a Big number and thus we would compare it with Big number `zero`
+      if (balance == zero) {
+        setTokensToBeClaimed(zero);
+      } else {
+        //amount keeps track of the number of unclaimed tokens
+        var amount = 0;
+        // For all the NFT's, check if the tokens have already been claimed
+        // Only increase the amount if the tokens have not been claimed
+        // for a an NFT(for a given tokenId)
+        for (var i = 0; i < balance; i++) {
+          const tokenId = await nftContract.tokenOfOwnerByIndex(address, i);
+          const claimed = await tokenContract.tokenIdsClaimed(tokenId);
+          if (!claimed) {
+            amount++;
+          }
+        }
+        //tokensToBeClaimed has been initialized to a Big Number, thus we would convert amount
+        // to a big number and then set its value
+        setTokensToBeClaimed(BigNumber.from(amount));
+      }
+    } catch (err) {
+      console.error(err);
+      setTokensToBeClaimed(zero);
+    }
+  };
+
+  /**
+   * getBalanceOfCryptoDevTokens: checks the balance of Crypto Dev Tokens's held by an address
+   */
+  const getBalanceOfCryptoDevTokens = async () => {
+    try {
+      // Get the provider from web3Modal, which in our case is MetaMask
+      // No need for the Signer here, as we are only reading state from the blockchain
+      const provider = await getProviderOrSigner();
+      // Create an instace of token contract
+      const tokenContract = new Contract(
+        TOKEN_CONTRACT_ADDRESS,
+        TOKEN_CONTRACT_ABI,
+        provider
+      );
+
+      // We will get the signer now to extract the address of the currently connected MetaMask account
+      const signer = await getProviderOrSigner(true);
+
+      // Get the address associated to the signer which is connected to  MetaMask
+      const address = await signer.getAddress();
+
+      // call the balanceOf from the token contract to get the number of tokens held by the user
+      const balance = await tokenContract.balanceOf(address);
+      // balance is already a big number, so we dont need to convert it before setting it
+      setBalanceOfCryptoDevTokens(balance);
+    } catch (err) {
+      console.error(err);
+      setBalanceOfCryptoDevTokens(zero);
+    }
+  };
+
+  /**
+   * mintCryptoDevToken: mints `amount` number of tokens to a given address
+   */
+  const mintCryptoDevToken = async (amount) => {
+    try {
+      console.log("mint");
+      // We need a Signer here since this is a 'write' transaction.
+      // Create an instance of tokenContract
+      const signer = await getProviderOrSigner(true);
+      // Create an instance of tokenContract
+      const tokenContract = new Contract(
+        TOKEN_CONTRACT_ADDRESS,
+        TOKEN_CONTRACT_ABI,
+        signer
+      );
+      // Each token is of `0.001 ether`. The value we need to send is `0.001 * amount`
+      const value = amount * 0.001;
+      const tx = await tokenContract.mint(amount, {
+        value: utils.parseEther(value.toString()),
+      });
+      setLoading(true);
+      await tx.wait();
+      setLoading(false);
+      window.alert("Sucessfully minted Crypto Dev Tokens");
+      await getBalanceOfCryptoDevTokens();
+      await getTotalTokensMinted();
+      await getTokensToBeClaimed();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  /**
+   * getOwner: gets the contract owner by connected address
+   */
+  const getOwner = async () => {
+    try {
+      const provider = await getProviderOrSigner();
+      // Create an instance of tokenContract
+      const tokenContract = new Contract(
+        TOKEN_CONTRACT_ADDRESS,
+        TOKEN_CONTRACT_ABI,
+        provider
+      );
+
+      const _owner = await tokenContract.owner();
+
+      const signer = await getProviderOrSigner(true);
+
+      const address = await signer.getAddress();
+
+      if (address.toLowerCase() === _owner.toLowerCase()) {
+        setIsOwner(true);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  /**
+   * claimCryptoDevTokens: Helps the user claim Crypto Dev Tokens
+   */
+  const claimCryptoDevTokens = async () => {
+    try {
+      // We need a Signer here since this is a 'write' transaction.
+      // Create an instance of tokenContract
+      const signer = await getProviderOrSigner(true);
+      // Create an instance of tokenContract
+      const tokenContract = new Contract(
+        TOKEN_CONTRACT_ADDRESS,
+        TOKEN_CONTRACT_ABI,
+        signer
+      );
+
+      const tx = await tokenContract.claim();
+      // wait for the transaction to get mined
+      setLoading(true);
+      await tx.wait();
+      setLoading(false);
+      window.alert("Succesfull claimed Crypto Dev Token");
+      await getBalanceOfCryptoDevTokens();
+      await getTotalTokensMinted();
+      await getTokensToBeClaimed();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  /**
+   * getTotalTokensMinted: Retrieves how many tokens have been minted till now
+   * out of the total supply
+   */
+  const getTotalTokensMinted = async () => {
+    try {
+      const provider = await getProviderOrSigner();
+
+      const tokenContract = new Contract(
+        TOKEN_CONTRACT_ADDRESS,
+        TOKEN_CONTRACT_ABI,
+        provider
+      );
+
+      const _totalTokensMinted = await tokenContract.totalSupply();
+
+      setTokensMinted(_totalTokensMinted);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  /**
+   * withdrawCoins: withdraws ether and tokens by calling
+   * the withdraw function in the contract
+   */
+  const withdrawCoins = async () => {
+    try {
+      const signer = await getProviderOrSigner(true);
+      const tokenContract = new Contract(
+        TOKEN_CONTRACT_ADDRESS,
+        TOKEN_CONTRACT_ABI,
+        signer
+      );
+      const tx = await tokenContract.withdraw();
+      setLoading(true);
+      await tx.wait();
+      setLoading(true);
+      await getOwner();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  /*
+        connectWallet: Connects the MetaMask wallet
+      */
+  const connectWallet = async () => {
+    try {
+      // Get the provider from web3Modal, which in our case is MetaMask
+      // When used for the first time, it prompts the user to connect their wallet
+      await getProviderOrSigner();
+      setWalletConnected(true);
     } catch (err) {
       console.error(err);
     }
@@ -101,10 +298,86 @@ export default function Home() {
     return web3Provider;
   };
 
+  // useEffects are used to react to changes in state of the website
+  // The array at the end of function call represents what state changes will trigger this effect
+  // In this case, whenever the value of `walletConnected` changes - this effect will be called
+  useEffect(() => {
+    // if wallet is not connected, create a new instance of Web3Modal and connect the MetaMask wallet
+    if (!walletConnected) {
+      // Assign the Web3Modal class to the reference object by setting it's `current` value
+      // The `current` value is persisted throughout as long as this page is open
+      web3ModalRef.current = new Web3Modal({
+        network: "rinkeby",
+        providerOptions: {},
+        disableInjectedProvider: false,
+      });
+      connectWallet();
+      getTotalTokensMinted();
+      getBalanceOfCryptoDevTokens();
+      getTokensToBeClaimed();
+      getOwner();
+    }
+  }, [walletConnected]);
+
   /*
         renderButton: Returns a button based on the state of the dapp
       */
-  const renderButton = () => {};
+  const renderButton = () => {
+    // If we are currently waiting for something, return a loading button
+    if (loading) {
+      <div>
+        <button className={styles.button}>Loading...</button>
+      </div>;
+    }
+
+    // if owner is connected, withdrawCoins() is called
+    if (walletConnected && isOwner) {
+      return (
+        <div>
+          <button className={styles.button} onClick={withdrawCoins}>
+            Withdraw Coins
+          </button>
+        </div>
+      );
+    }
+
+    // If tokens to be claimed are greater than 0, Return a claim button
+    if (tokensToBeClaimed > 0) {
+      return (
+        <div>
+          <div className={styles.description}>
+            {tokensToBeClaimed * 10} Tokens can be claimed!
+          </div>
+          <button className={styles.button} onClick={claimCryptoDevTokens}>
+            Claim Tokens
+          </button>
+        </div>
+      );
+    }
+
+    // If user doesn't have any tokens to claim, show the mint button
+    return (
+      <div style={{ display: "flex-col" }}>
+        <div>
+          <input
+            type="number"
+            placeholder="Amount of Tokens"
+            // BigNumber.from converts the `e.target.value` to a BigNumber
+            onChange={(e) => setTokenAmount(BigNumber.from(e.target.value))}
+            className={styles.input}
+          />
+        </div>
+
+        <button
+          className={styles.button}
+          disabled={!(tokenAmount > 0)}
+          onClick={() => mintCryptoDevToken(tokenAmount)}
+        >
+          Mint Tokens
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div className={styles.container}>
@@ -114,9 +387,30 @@ export default function Home() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <div className={styles.main}>
-        <h1 className={styles.title}>Welcome to Crypto Devs ICO!</h1>
-        <div className={styles.description}>
-          You can claim or mint Crypto Dev tokens here
+        <div>
+          <h1 className={styles.title}>Welcome to Crypto Devs ICO!</h1>
+          <div className={styles.description}>
+            You can claim or mint Crypto Dev tokens here
+          </div>
+          {walletConnected ? (
+            <div>
+              <div className={styles.description}>
+                {/* Format Ether helps us in converting a BigNumber to string */}
+                You have minted {utils.formatEther(balanceOfCryptoDevTokens)}{" "}
+                Crypto Dev Tokens
+              </div>
+              <div className={styles.description}>
+                {/* Format Ether helps us in converting a BigNumber to string */}
+                Overall {utils.formatEther(tokensMinted)}/10000 have been
+                minted!!!
+              </div>
+              {renderButton()}
+            </div>
+          ) : (
+            <button onClick={connectWallet} className={styles.button}>
+              Connect your wallet
+            </button>
+          )}
         </div>
         <div>
           <img className={styles.image} src="./0.svg" />
