@@ -325,9 +325,11 @@ export default function Home() {
   const renderButton = () => {
     // If we are currently waiting for something, return a loading button
     if (loading) {
-      <div>
-        <button className={styles.button}>Loading...</button>
-      </div>;
+      return (
+        <div>
+          <button className={styles.button}>Loading...</button>
+        </div>
+      );
     }
 
     // if owner is connected, withdrawCoins() is called
